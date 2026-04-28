@@ -1,74 +1,195 @@
-# go-s3-csv-processor
+# 🚀 AWS Lambda CSV Processor (Go)
 
-Event-driven CSV processor built with Go, AWS Lambda, S3, SQS, and PostgreSQL.
+## 📌 Overview
+A high-performance, serverless data processing pipeline using AWS Lambda in Go.
 
-## Architecture
+This service:
+- Triggers on S3 uploads
+- Processes CSV files concurrently
+- Inserts records into PostgreSQL
+- Sends completion notifications via SQS
 
-S3 Upload (CSV) → Lambda (Go) → Process with Worker Pool → PostgreSQL → SQS Notification
+---
 
-## Features
-- **Concurrent processing**: Uses Go goroutines + worker pool to parse 100k+ rows
-- **Event-driven**: S3 triggers Lambda automatically on file upload
-- **Scalable**: Lambda scales to 0-1000 concurrent executions
-- **Observable**: CloudWatch logs + X-Ray tracing
-- **Production ready**: Error handling, retries, DLQ for failed messages
+## 🏗 Architecture
 
-## Performance
-Processes 1GB CSV with 1M rows in ~12s using 50 workers on Lambda 1024MB.
-
-## Tech Stack
-**Language**: Go 1.22
-**AWS**: Lambda, S3, SQS, RDS PostgreSQL, CloudWatch, IAM
-**Libraries**: `aws-sdk-go-v2`, `pgx`, `golang.org/x/sync/errgroup`
-
-## Setup
-
-### 1. Prerequisites
-- Go 1.22+
-- AWS CLI configured
-- PostgreSQL instance
-
-### 2. Deploy Infrastructure
-```bash
-# Create S3 bucket
-aws s3 mb s3://go-csv-uploads-jamestar
-
-# Create SQS queue for notifications
-aws sqs create-queue --queue-name csv-processed-queue
-
-# Set up RDS PostgreSQL and run schema.sql
 ```
-### 3. Build & Deploy Lambda
+        ┌──────────┐
+        │   S3     │
+        └────┬─────┘
+             │ (event)
+             ▼
+       ┌────────────┐
+       │  Lambda    │
+       │ (Worker    │
+       │  Pool)     │
+       └────┬───────┘
+            │
+   ┌────────▼────────┐
+   │ PostgreSQL (RDS)│
+   └────────┬────────┘
+            │
+            ▼
+         ┌─────┐
+         │ SQS │
+         └─────┘
 ```
-cd lambda
-GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
-zip function.zip bootstrap
-aws lambda create-function \
-  --function-name go-csv-processor \
-  --runtime provided.al2 \
-  --handler bootstrap \
-  --zip-file fileb://function.zip \
-  --role arn:aws:iam::YOUR_ACCOUNT:role/lambda-execution-role \
-  --environment Variables={DB_URL=postgresql://user:pass@host/db,SQS_URL=https://sqs.us-east-1.amazonaws.com/...}
-```
-### 4. Configure S3 Trigger
-```
-aws s3api put-bucket-notification-configuration \
-  --bucket go-csv-uploads-jamestar \
-  --notification-configuration file://s3-trigger.json
 
-aws s3api put-bucket-notification-configuration \
-  --bucket go-csv-uploads-jamestar \
-  --notification-configuration file://s3-trigger.json
+---
+
+## ⚙️ Features
+
+- ⚡ **Concurrent processing** with 50 workers
+- 🔌 **Connection pooling** via pgx
+- 🧵 **Goroutine orchestration** using errgroup
+- ☁️ Fully serverless and scalable
+- 📬 Event-driven architecture
+
+---
+
+## 🔧 Environment Variables
+
+| Variable | Description |
+|----------|------------|
+| `DB_URL` | PostgreSQL connection string |
+| `SQS_URL` | Target SQS queue URL |
+
+---
+
+## 📄 CSV Format
+
+Expected CSV structure:
+
 ```
-### Usage
-aws s3 cp large_dataset.csv s3://go-csv-uploads-jamestar/
-# Check PostgreSQL table `processed_records` and SQS for completion message
+id,name,email,value
+```
 
-### Local Testing
-go run lambda/main.go
+Example:
 
-### Future Improvements
-- [ ] Add Step Functions for multi-stage processing
-- [ ] Dead Letter Queue for failed rows
-- [ ] API Gateway endpoint for upload presigned URLs
+```
+1,John Doe,john@example.com,100
+2,Jane Doe,jane@example.com,200
+```
+
+---
+
+## 🔄 Processing Flow
+
+1. S3 upload triggers Lambda
+2. File is fetched from S3
+3. CSV is parsed into records
+4. Records are distributed to worker pool
+5. Workers insert into PostgreSQL
+6. Completion message sent to SQS
+
+---
+
+## 🧵 Worker Pool Design
+
+- Uses buffered channel as job queue
+- Fixed worker count (50)
+- `errgroup` ensures:
+  - Proper cancellation
+  - Error propagation
+  - Clean shutdown
+
+---
+
+## 🗄 Database Schema
+
+```sql
+CREATE TABLE processed_records (
+    id TEXT,
+    name TEXT,
+    email TEXT,
+    value TEXT,
+    processed_at TIMESTAMP
+);
+```
+
+---
+
+## 🚀 Deployment
+
+### Build
+```
+GOOS=linux GOARCH=amd64 go build -o main
+```
+
+### Package
+```
+zip function.zip main
+```
+
+### Deploy
+Upload `function.zip` to AWS Lambda.
+
+---
+
+## 🔐 IAM Permissions
+
+Ensure Lambda has:
+
+- `s3:GetObject`
+- `sqs:SendMessage`
+- RDS access (via VPC + security groups)
+
+---
+
+## ⚠️ Limitations
+
+- Loads entire CSV into memory (`ReadAll()`)
+- No retry logic for failed inserts
+- No batching for DB writes
+
+---
+
+## 🧠 Recommended Improvements
+
+### Performance
+- ✅ Batch inserts (COPY or multi-row INSERT)
+- ✅ Stream CSV instead of `ReadAll()`
+- ✅ Tune worker count dynamically
+
+### Reliability
+- 🔁 Add retry + DLQ
+- 🧾 Add idempotency handling
+- 📊 Add metrics (CloudWatch)
+
+### Observability
+- Structured logging (zap/logrus)
+- Tracing (AWS X-Ray)
+- Monitoring dashboards
+
+---
+
+## 📦 Dependencies
+
+- AWS SDK v2
+- AWS Lambda Go SDK
+- pgx/v5
+- errgroup
+
+---
+
+## 💡 Future Enhancements
+
+- Support multiple file formats (JSON, Parquet)
+- Add validation layer
+- Introduce schema versioning
+- Add API for querying processed data
+
+---
+
+## 🧪 Local Testing
+
+Use AWS SAM or LocalStack:
+
+```
+sam local invoke
+```
+
+---
+
+## 📜 License
+MIT
