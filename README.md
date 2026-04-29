@@ -34,7 +34,31 @@ This service:
          │ SQS │
          └─────┘
 ```
+⚡ Quick Start
+Follow these three steps to run the entire pipeline locally:
 
+1. Build the Application
+Compile the Go code and package it for Lambda:
+```
+make build
+```
+
+2. Launch Infrastructure
+Start the database and AWS services (S3, SQS, Lambda). All resources are automatically provisioned via setup.sh:
+
+```
+docker-compose up -d
+```
+3. Test the Pipeline
+Upload a CSV to trigger the processing:
+```
+make test-upload
+```
+Verify the data in PostgreSQL:
+
+```
+docker exec -it go-s3-csv-processor-postgres-1 psql -U localstack -d csvdb -c "SELECT * FROM processed_records;"
+```
 ---
 
 ## ⚙️ Features

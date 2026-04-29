@@ -36,8 +36,14 @@ deploy: build
 		--notification-configuration "{\"LambdaFunctionConfigurations\": [{\"LambdaFunctionArn\": \"arn:aws:lambda:$(REGION):000000000000:function:$(FUNCTION_NAME)\", \"Events\": [\"s3:ObjectCreated:*\"]}]}"
 
 test-upload:
-	@echo "Uploading sample CSV..."
-	powershell -Command "Set-Content -Path test.csv -Value 'id,name,email,value'; Add-Content -Path test.csv -Value '1,John Doe,john@example.com,100'"
+	@echo "Checking for test.csv in root folder..."
+	@powershell -Command "if (Test-Path 'test.csv') { \
+		Write-Host 'Found existing test.csv, uploading...'; \
+	} else { \
+		Write-Host 'test.csv not found, creating a default sample...'; \
+		Set-Content -Path test.csv -Value 'id,name,email,value'; \
+		Add-Content -Path test.csv -Value '1,John Doe,john@example.com,100'; \
+	}"
 	awslocal s3 cp test.csv s3://$(BUCKET_NAME)/test.csv
 
 clean:
@@ -45,10 +51,3 @@ clean:
 	-awslocal lambda delete-function --function-name $(FUNCTION_NAME)
 	-awslocal s3 rb s3://$(BUCKET_NAME) --force
 	-awslocal sqs delete-queue --queue-url http://localhost:4566/000000000000/$(QUEUE_NAME)
-
-reset:
-	docker-compose down -v
-	docker-compose up -d
-	@echo "Waiting for LocalStack..."
-	@sleep 10 
-	make deploy

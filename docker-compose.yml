@@ -11,7 +11,9 @@ services:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
+    - "./init-aws:/etc/localstack/init/ready.d" # Runs setup.sh on startup
+    - "./lambda:/var/lib/localstack" # Maps your zip file into the container
+    - "/var/run/docker.sock:/var/run/docker.sock"
 
   postgres:
     image: postgres:15
@@ -19,5 +21,7 @@ services:
       POSTGRES_USER: localstack
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: csvdb
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
