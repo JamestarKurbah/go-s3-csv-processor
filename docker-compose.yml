@@ -1,26 +1,23 @@
 services:
   localstack:
     image: localstack/localstack:latest
-    container_name: localstack_main
     ports:
-      - "127.0.0.1:4566:4566"
+      - "4566:4566"
+      - "4510-4559:4510-4559"
     environment:
-      - SERVICES=s3,lambda,sqs,cloudwatch
+      - SERVICES=s3,sqs,lambda,cloudwatch,iam,logs
       - DEBUG=1
-      - LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT=1
+      - LAMBDA_EXECUTOR=docker
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "./init-aws:/etc/localstack/init/ready.d" # Auto-config scripts
 
   postgres:
-    image: postgres:15-alpine
-    container_name: postgres_db
+    image: postgres:15
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=pass
-      - POSTGRES_DB=processor_db
+      POSTGRES_USER: localstack
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: csvdb
     ports:
       - "5432:5432"
-    volumes:
-      - ./init-db:/docker-entrypoint-initdb.d # Auto-create tables
